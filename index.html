@@ -1,0 +1,41 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition</title>
+</head>
+<body>
+    <h1>Face Recognition from Uploaded Image</h1>
+    
+    <input type="file" id="imageUpload" accept="image/*">
+    <canvas id="canvas" width="112" height="112"></canvas>
+    <p id="status">Upload an image to recognize.</p>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition</title>
+</head>
+<body>
+    <h1>Face Recognition</h1>
+    
+    <div id="camera-container">
+        <video id="video" width="400" height="300" autoplay></video>
+        <button id="capture">Capture Photo</button>
+    </div>
+    <input type="file" id="imageUpload" accept="image/*">
+    <canvas id="canvas" width="112" height="112"></canvas>
+    <p id="status">Ready to capture or upload image.</p>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
