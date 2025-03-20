@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure Face Recognition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .section {
+            flex: 1;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .preview {
+            max-width: 300px;
+            margin: 10px 0;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Secure Face Recognition System</h1>
+    
+    <div class="container">
+        <div class="section">
+            <h2>Register New Face</h2>
+            <form id="registerForm">
+                <input type="text" id="name" placeholder="Enter name" required><br><br>
+                <input type="file" id="registerImage" accept="image/*" required><br><br>
+                <img id="registerPreview" class="preview">
+                <button type="submit">Register Face</button>
+            </form>
+            <div id="registerResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>Recognize Face</h2>
+            <form id="recognizeForm">
+                <input type="file" id="recognizeImage" accept="image/*" required><br><br>
+                <img id="recognizePreview" class="preview">
+                <button type="submit">Recognize Face</button>
+            </form>
+            <div id="recognizeResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        function previewImage(input, imgElement) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imgElement.src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        document.getElementById('registerImage').onchange = function() {
+            previewImage(this, document.getElementById('registerPreview'));
+        };
+
+        document.getElementById('recognizeImage').onchange = function() {
+            previewImage(this, document.getElementById('recognizePreview'));
+        };
+
+        async function imageToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64String = reader.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        document.getElementById('registerForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const imageFile = document.getElementById('registerImage').files[0];
+            const base64Image = await imageToBase64(imageFile);
+
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, image: base64Image})
+                });
+                const data = await response.json();
+                document.getElementById('registerResult').innerHTML = 
+                    data.error ? `<div class="error">${data.error}</div>` : data.message;
+            } catch (error) {
+                document.getElementById('registerResult').innerHTML = 
+                    `<div class="error">Error: ${error.message}</div>`;
+            }
+        };
+
+        document.getElementById('recognizeForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const imageFile = document.getElementById('recognizeImage').files[0];
+            const base64Image = await imageToBase64(imageFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image: base64Image})
+                });
+                const data = await response.json();
+                if (data.error) {
+                    document.getElementById('recognizeResult').innerHTML = 
+                        `<div class="error">${data.error}</div>`;
+                } else {
+                    document.getElementById('recognizeResult').innerHTML = `
+                        <p>Identity: ${data.identity}</p>
+                        <p>Similarity: ${(data.similarity * 100).toFixed(2)}%</p>
+                        <p>Embedding Shape: ${data.embedding_shape}</p>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('recognizeResult').innerHTML = 
+                    `<div class="error">Error: ${error.message}</div>`;
+            }
+        };
+    </script>
+</body>
+</html>

@@ -5,11 +5,14 @@ import json
 import onnx
 import numpy as np
 import onnxruntime as ort
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
 from PIL import Image
 import base64
+import cv2
+from io import BytesIO
+from secure_prediction import secure_predict
 
 app = Flask(__name__)
 
@@ -54,73 +57,108 @@ def cosine_similarity(vec1, vec2):
     """Compute cosine similarity between two vectors."""
     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
+def preprocess_image(image_data):
+    """Preprocess image for model input"""
+    # Convert base64 to image
+    img = Image.open(BytesIO(base64.b64decode(image_data)))
+    img = img.convert('RGB')
+    
+    # Convert to numpy and preprocess
+    img_np = np.array(img)
+    img_np = cv2.resize(img_np, (112, 112))
+    img_np = img_np.astype(np.float32) / 255.0
+    img_np = np.transpose(img_np, (2, 0, 1))
+    img_np = np.expand_dims(img_np, axis=0)
+    return img_np
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
         # Get image from request
         data = request.json
-        img_data = base64.b64decode(data["image"])
+        img_data = data.get('image')
+        if not img_data:
+            return jsonify({'error': 'No image provided'}), 400
 
-        # Convert image to tensor
-        image = Image.open(io.BytesIO(img_data)).resize((112, 112)).convert("RGB")
-        image_np = np.asarray(image).astype(np.float32) / 255.0  # Normalize
-        image_np = np.transpose(image_np, (2, 0, 1))  # Channels first (C, H, W)
-        image_np = np.expand_dims(image_np, axis=0)  # Add batch dimension
+        # Preprocess image
+        input_data = preprocess_image(img_data)
+        
+        # Get model path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(current_dir, "models", "MobileFaceNet.onnx")
+        
+        # Run secure prediction
+        embedding = secure_predict(model_path, input_data)
+        
+        if embedding is None:
+            return jsonify({'error': 'Failed to generate embedding'}), 500
 
-        # Run inference
-        input_name = session.get_inputs()[0].name
-        output_name = session.get_outputs()[0].name
-        embedding = session.run([output_name], {input_name: image_np})[0].flatten()  # Convert to 1D array
-
-        # ✅ Step 5: Compare with Stored Embeddings
+        # Compare with stored embeddings
         best_match = None
-        best_score = -1  # Cosine similarity range is -1 to 1
+        best_score = -1
 
         for name, ref_embedding in reference_faces.items():
-            score = cosine_similarity(embedding, np.array(ref_embedding))
-            if score > best_score:  # Find the highest similarity
+            score = cosine_similarity(embedding.flatten(), np.array(ref_embedding))
+            if score > best_score:
                 best_score = score
                 best_match = name
 
-        # ✅ Step 6: Return Result
-        if best_score > 0.6:  # Threshold for recognition
-            return jsonify({"identity": best_match, "similarity": best_score}), 200
+        # Return result
+        if best_score > 0.6:  # Recognition threshold
+            return jsonify({
+                'identity': best_match,
+                'similarity': float(best_score),
+                'embedding_shape': embedding.shape
+            }), 200
         else:
-            return jsonify({"identity": "Unknown", "similarity": best_score}), 200
+            return jsonify({
+                'identity': 'Unknown',
+                'similarity': float(best_score),
+                'embedding_shape': embedding.shape
+            }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 # ✅ Step 7: Register a New Face
 @app.route("/register", methods=["POST"])
 def register():
     try:
         data = request.json
-        name = data["name"]
-        img_data = base64.b64decode(data["image"])
+        name = data.get('name')
+        img_data = data.get('image')
+        
+        if not name or not img_data:
+            return jsonify({'error': 'Name and image required'}), 400
 
-        # Convert image to tensor
-        image = Image.open(io.BytesIO(img_data)).resize((112, 112)).convert("RGB")
-        image_np = np.asarray(image).astype(np.float32) / 255.0
-        image_np = np.transpose(image_np, (2, 0, 1))
-        image_np = np.expand_dims(image_np, axis=0)
-
-        # Run inference to get embedding
-        input_name = session.get_inputs()[0].name
-        output_name = session.get_outputs()[0].name
-        embedding = session.run([output_name], {input_name: image_np})[0].flatten()
+        # Preprocess image
+        input_data = preprocess_image(img_data)
+        
+        # Get model path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(current_dir, "models", "MobileFaceNet.onnx")
+        
+        # Generate embedding
+        embedding = secure_predict(model_path, input_data)
+        
+        if embedding is None:
+            return jsonify({'error': 'Failed to generate embedding'}), 500
 
         # Store embedding
-        reference_faces[name] = embedding.tolist()
+        reference_faces[name] = embedding.flatten().tolist()
 
-        # Save to JSON file
-        with open(REFERENCE_PATH, "w") as f:
+        # Save to file
+        with open(REFERENCE_PATH, 'w') as f:
             json.dump(reference_faces, f)
 
-        return jsonify({"message": f"Face registered for {name}"}), 200
+        return jsonify({'message': f'Successfully registered {name}'}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 # ✅ Step 8: Run Flask Server
 if __name__ == "__main__":
