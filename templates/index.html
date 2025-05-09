@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html>
 <head>
     <title>Secure Face Recognition</title>
@@ -141,5 +141,153 @@
             }
         };
     </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Secure Face Recognition</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      width: 80%;
+      max-width: 800px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      text-align: center;
+    }
+    .section {
+      margin-bottom: 40px;
+    }
+    .section h2 {
+      margin-bottom: 10px;
+    }
+    .result, .error {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .error {
+      color: #D8000C;
+      background-color: #FFBABA;
+    }
+    .preview {
+      display: none;
+      margin-top: 10px;
+      max-width: 300px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Secure Face Recognition System</h1>
+    
+    <!-- Registration Section -->
+    <div class="section">
+      <h2>Register New Face</h2>
+      <form id="registerForm" method="post" enctype="multipart/form-data" action="/register">
+        <input type="text" name="face_id" placeholder="Enter face ID (e.g. 01)" required>
+        <br><br>
+        <input type="file" name="image" accept="image/*" required>
+        <br>
+        <button type="submit">Register Face</button>
+    </form>
+      <div id="registerResult" class="result"></div>
+    </div>
+    
+    <!-- Recognition Section -->
+    <div class="section">
+      <h2>Recognize Face</h2>
+        <form id="recognizeForm" method="post" enctype="multipart/form-data" action="/predict">
+            <input type="file" name="image" id="recognizeImage" accept="image/*" required>
+            <br>
+            <img id="recognizePreview" class="preview" alt="Image Preview">
+            <br><br>
+            <button type="submit">Recognize Face</button>
+        </form>
+      <div id="recognizeResult" class="result"></div>
+    </div>
+  </div>
+  
+  <script>
+    // Function to preview the selected image
+    function previewImage(input, previewId) {
+      if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var preview = document.getElementById(previewId);
+          preview.src = e.target.result;
+          preview.style.display = "block";
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+    
+    document.getElementById('registerImage').addEventListener('change', function(){
+      previewImage(this, 'registerPreview');
+    });
+    
+    document.getElementById('recognizeImage').addEventListener('change', function(){
+      previewImage(this, 'recognizePreview');
+    });
+    
+    // Handle face registration
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var formData = new FormData(this);
+      try {
+        const response = await fetch('/register', {
+          method: 'POST',
+          body: formData
+        });
+        const res = await response.json();
+        document.getElementById('registerResult').innerHTML = res.error 
+          ? `<div class="error">${res.error}</div>` 
+          : `<div>${res.message}</div>`;
+      } catch(error) {
+        document.getElementById('registerResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    });
+    
+    // Handle face recognition
+    document.getElementById('recognizeForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var formData = new FormData(this);
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST',
+          body: formData
+        });
+        const res = await response.json();
+        if (res.error) {
+          document.getElementById('recognizeResult').innerHTML = `<div class="error">${res.error}</div>`;
+        } else {
+          document.getElementById('recognizeResult').innerHTML = `
+            <p>Access: ${res.access}</p>
+            <p>Identity: ${res.identity}</p>
+            <p>Confidence: ${(res.confidence * 100).toFixed(2)}%</p>
+            <p>Embedding Shape: ${res.embedding_shape}</p>
+          `;
+        }
+      } catch(error) {
+        document.getElementById('recognizeResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    });
+  </script>
 </body>
 </html>
